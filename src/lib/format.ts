@@ -1,12 +1,17 @@
-export function currency(value: number): string {
-  return value.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  });
+export function currency(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
 }
 
-export function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
+export function priceDots(level: 1 | 2 | 3): string {
+  return '$'.repeat(level)
+}
+
+export function classNames(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter(Boolean).join(' ')
+}
+
+let idCounter = 0
+export function uid(prefix = 'id'): string {
+  idCounter += 1
+  return `${prefix}_${Date.now().toString(36)}_${idCounter}`
 }

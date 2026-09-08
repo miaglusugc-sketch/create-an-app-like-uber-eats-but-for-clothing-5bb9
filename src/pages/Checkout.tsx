@@ -1,280 +1,407 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useStore, COURIER_POOL } from '../context/StoreContext';
-import { getBoutique, getProduct } from '../data/catalog';
-import { currency, plural } from '../lib/format';
-import GarmentArt, { shade } from '../components/GarmentArt';
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
-  IconArrowLeft,
-  IconPin,
-  IconBolt,
-  IconClock,
-  IconCheck,
-  IconUser,
-  IconTruck,
-} from '../components/icons';
+  ArrowLeft,
+  MapPin,
+  Zap,
+  Bike,
+  CreditCard,
+  Check,
+  Pencil,
+  ShieldCheck,
+  Clock,
+  Gift,
+} from 'lucide-react'
+import { Header } from '../components/Header'
+import { Garment } from '../components/Garment'
+import { useCart } from '../context/CartContext'
+import { storeById } from '../data/stores'
+import { currency } from '../lib/format'
+import { loadAddress, saveAddress, type Address } from '../lib/address'
+import { saveOrder } from '../lib/orders'
+import type { Order } from '../types'
+import { uid } from '../lib/format'
 
-const TIPS = [0, 2, 4, 6];
+const COURIERS = [
+  { name: 'Maya R.', vehicle: 'E-bike', rating: 4.96 },
+  { name: 'Leo T.', vehicle: 'Scooter', rating: 4.92 },
+  { name: 'Priya N.', vehicle: 'E-bike', rating: 4.98 },
+  { name: 'Marcus B.', vehicle: 'Car', rating: 4.9 },
+  { name: 'Sofia K.', vehicle: 'Bike', rating: 4.94 },
+]
 
-export default function Checkout() {
-  const navigate = useNavigate();
-  const { cart, cartSubtotal, cartBoutiqueId, address, setAddress, placeOrder } = useStore();
-  const boutique = cartBoutiqueId ? getBoutique(cartBoutiqueId) : null;
+export function Checkout() {
+  const cart = useCart()
+  const navigate = useNavigate()
+  const store = cart.storeId ? storeById(cart.storeId) : undefined
 
-  const [name, setName] = useState('Alex Morgan');
-  const [phone, setPhone] = useState('+1 (555) 018-2245');
-  const [addr, setAddr] = useState(address);
-  const [note, setNote] = useState('');
-  const [when, setWhen] = useState<'asap' | 'schedule'>('asap');
-  const [pay, setPay] = useState<'card' | 'apple' | 'cash'>('card');
-  const [tip, setTip] = useState(4);
-  const [placing, setPlacing] = useState(false);
+  const [address, setAddress] = useState<Address>(loadAddress())
+  const [editingAddr, setEditingAddr] = useState(false)
+  const [speed, setSpeed] = useState<'standard' | 'express'>('standard')
+  const [tip, setTip] = useState<number>(3)
+  const [customTip, setCustomTip] = useState('')
+  const [payIdx, setPayIdx] = useState(0)
+  const [placing, setPlacing] = useState(false)
+  const [notes, setNotes] = useState('')
 
-  if (cart.length === 0 || !boutique) {
+  const baseDelivery = store
+    ? store.freeDeliveryOver && cart.subtotal >= store.freeDeliveryOver
+      ? 0
+      : store.deliveryFee
+    : 0
+  const expressSurcharge = speed === 'express' ? 4.99 : 0
+  const deliveryFee = baseDelivery + expressSurcharge
+  const serviceFee = useMemo(() => Math.max(1.99, Math.round(cart.subtotal * 0.05 * 100) / 100), [cart.subtotal])
+  const effectiveTip = customTip !== '' ? Math.max(0, Number(customTip) || 0) : tip
+  const total = cart.subtotal + deliveryFee + serviceFee + effectiveTip
+
+  const cards = [
+    { label: 'Visa •••• 4242', icon: '💳' },
+    { label: 'Mastercard •••• 5309', icon: '💳' },
+    { label: 'Apple Pay', icon: '' },
+  ]
+
+  if (!store || cart.lines.length === 0) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-24 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-ink-muted shadow-card">
-          <IconTruck className="h-8 w-8" />
+      <div className="min-h-screen bg-ink-50">
+        <Header showSearch={false} />
+        <div className="mx-auto max-w-md px-4 py-24 text-center">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-ink-100 text-ink-400">
+            <Bike className="h-7 w-7" />
+          </span>
+          <h1 className="mt-4 text-2xl font-extrabold text-ink-950">Your bag is empty</h1>
+          <p className="mt-2 text-ink-500">Add pieces from a boutique to check out.</p>
+          <Link to="/" className="btn-dark mt-6 inline-flex h-11 px-6 text-sm">
+            Browse boutiques
+          </Link>
         </div>
-        <h1 className="mt-5 text-2xl font-bold text-ink">Your bag is empty</h1>
-        <p className="mt-2 text-ink-muted">Add some pieces before heading to checkout.</p>
-        <Link to="/" className="btn-primary mt-6 h-11 px-6">Start browsing</Link>
       </div>
-    );
+    )
   }
 
-  const freeDelivery = boutique.freeOver !== undefined && cartSubtotal >= boutique.freeOver;
-  const deliveryFee = freeDelivery ? 0 : boutique.deliveryFee;
-  const serviceFee = Math.round(cartSubtotal * 0.05 * 100) / 100;
-  const total = cartSubtotal + deliveryFee + serviceFee + tip;
-  const itemCount = cart.reduce((s, l) => s + l.qty, 0);
-
-  const handlePlace = () => {
-    setPlacing(true);
-    setAddress(addr);
-    const courier = COURIER_POOL[Math.floor(Math.random() * COURIER_POOL.length)];
+  function placeOrder() {
+    if (!store) return
+    setPlacing(true)
+    const etaMinutes =
+      speed === 'express' ? Math.max(15, Math.round(store.eta[0] * 0.7)) : Math.round((store.eta[0] + store.eta[1]) / 2)
+    const courier = COURIERS[Math.floor(Math.random() * COURIERS.length)]
+    const order: Order = {
+      id: uid('ord'),
+      createdAt: Date.now(),
+      storeId: store.id,
+      storeName: store.name,
+      lines: cart.lines,
+      subtotal: cart.subtotal,
+      deliveryFee,
+      serviceFee,
+      tip: effectiveTip,
+      total,
+      address: `${address.line}, ${address.city}`,
+      speed,
+      courier,
+      etaMinutes,
+      status: 'confirmed',
+    }
+    saveAddress(address)
+    saveOrder(order)
     setTimeout(() => {
-      const order = placeOrder(addr, courier);
-      if (order) navigate(`/order/${order.id}`);
-      else setPlacing(false);
-    }, 700);
-  };
+      cart.clear()
+      navigate(`/track/${order.id}`)
+    }, 900)
+  }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-soft hover:text-brand-600"
-      >
-        <IconArrowLeft className="h-4 w-4" /> Back
-      </button>
-      <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink">Checkout</h1>
+    <div className="min-h-screen bg-ink-50">
+      <Header showSearch={false} />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
-        {/* Left: forms */}
-        <div className="space-y-4">
-          {/* Delivery */}
-          <section className="card p-5">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <IconPin className="h-5 w-5 text-brand-500" /> Delivery details
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm font-semibold text-ink-soft">Full name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} className="field" />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-semibold text-ink-soft">Phone</span>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} className="field" />
-              </label>
-            </div>
-            <label className="mt-3 block">
-              <span className="mb-1 block text-sm font-semibold text-ink-soft">Address</span>
-              <input value={addr} onChange={(e) => setAddr(e.target.value)} className="field" />
-            </label>
-            <label className="mt-3 block">
-              <span className="mb-1 block text-sm font-semibold text-ink-soft">
-                Courier note <span className="font-normal text-ink-muted">(optional)</span>
-              </span>
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Leave at the door, buzz 4B…"
-                className="field"
-              />
-            </label>
-          </section>
+      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink-600 transition hover:text-ink-950"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <h1 className="mt-3 text-2xl font-extrabold text-ink-950 sm:text-3xl">Checkout</h1>
+        <p className="text-sm text-ink-500">
+          from <span className="font-semibold text-ink-700">{store.name}</span>
+        </p>
 
-          {/* Timing */}
-          <section className="card p-5">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <IconClock className="h-5 w-5 text-brand-500" /> When
-            </h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setWhen('asap')}
-                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
-                  when === 'asap' ? 'border-brand-500 bg-brand-50' : 'border-ink/15 hover:border-ink/30'
-                }`}
-              >
-                <IconBolt className={`mt-0.5 h-5 w-5 ${when === 'asap' ? 'text-brand-500' : 'text-ink-muted'}`} />
-                <span>
-                  <span className="block font-bold text-ink">Standard · ASAP</span>
-                  <span className="text-sm text-ink-muted">{boutique.etaMin}–{boutique.etaMax} min</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setWhen('schedule')}
-                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
-                  when === 'schedule' ? 'border-brand-500 bg-brand-50' : 'border-ink/15 hover:border-ink/30'
-                }`}
-              >
-                <IconClock className={`mt-0.5 h-5 w-5 ${when === 'schedule' ? 'text-brand-500' : 'text-ink-muted'}`} />
-                <span>
-                  <span className="block font-bold text-ink">Schedule</span>
-                  <span className="text-sm text-ink-muted">Pick a 1-hour window today</span>
-                </span>
-              </button>
-            </div>
-          </section>
-
-          {/* Payment */}
-          <section className="card p-5">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <IconUser className="h-5 w-5 text-brand-500" /> Payment
-            </h2>
-            <div className="mt-4 space-y-2">
-              {[
-                { id: 'card', label: 'Visa •••• 4242', sub: 'Expires 08/28' },
-                { id: 'apple', label: 'Apple Pay', sub: 'Face ID' },
-                { id: 'cash', label: 'Cash on delivery', sub: 'Pay the courier' },
-              ].map((opt) => (
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
+          {/* Left column */}
+          <div className="space-y-4">
+            {/* Address */}
+            <section className="card p-5">
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-base font-bold text-ink-950">
+                  <MapPin className="h-5 w-5 text-brand-500" /> Delivery address
+                </h2>
                 <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setPay(opt.id as typeof pay)}
-                  className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
-                    pay === opt.id ? 'border-brand-500 bg-brand-50' : 'border-ink/15 hover:border-ink/30'
-                  }`}
+                  onClick={() => setEditingAddr((v) => !v)}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-brand-500 hover:text-brand-600"
                 >
-                  <span>
-                    <span className="block font-bold text-ink">{opt.label}</span>
-                    <span className="text-sm text-ink-muted">{opt.sub}</span>
+                  <Pencil className="h-3.5 w-3.5" /> {editingAddr ? 'Done' : 'Edit'}
+                </button>
+              </div>
+
+              {editingAddr ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="label">Label</label>
+                    <input
+                      className="input"
+                      value={address.label}
+                      onChange={(e) => setAddress({ ...address, label: e.target.value })}
+                      placeholder="Home"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">Street address</label>
+                    <input
+                      className="input"
+                      value={address.line}
+                      onChange={(e) => setAddress({ ...address, line: e.target.value })}
+                      placeholder="128 Marlowe Street, Apt 4B"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">City, State ZIP</label>
+                    <input
+                      className="input"
+                      value={address.city}
+                      onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                      placeholder="Brooklyn, NY 11201"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-start gap-3 rounded-2xl bg-ink-50 p-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-brand-500 shadow-sm">
+                    <MapPin className="h-5 w-5" />
                   </span>
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
-                      pay === opt.id ? 'border-brand-500 bg-brand-500 text-white' : 'border-ink/25'
+                  <div className="text-sm">
+                    <p className="font-bold text-ink-900">{address.label}</p>
+                    <p className="text-ink-600">{address.line}</p>
+                    <p className="text-ink-500">{address.city}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-3">
+                <label className="label">Delivery notes (optional)</label>
+                <input
+                  className="input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Leave with the doorman"
+                />
+              </div>
+            </section>
+
+            {/* Delivery speed */}
+            <section className="card p-5">
+              <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-ink-950">
+                <Clock className="h-5 w-5 text-brand-500" /> Delivery speed
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SpeedOption
+                  active={speed === 'standard'}
+                  onClick={() => setSpeed('standard')}
+                  icon={<Bike className="h-5 w-5" />}
+                  title="Standard"
+                  sub={`${store.eta[0]}–${store.eta[1]} min`}
+                  price={baseDelivery === 0 ? 'Free' : currency(baseDelivery)}
+                />
+                <SpeedOption
+                  active={speed === 'express'}
+                  onClick={() => setSpeed('express')}
+                  icon={<Zap className="h-5 w-5" />}
+                  title="Express"
+                  sub={`~${Math.max(15, Math.round(store.eta[0] * 0.7))} min`}
+                  price={`+${currency(4.99)}`}
+                  highlight
+                />
+              </div>
+            </section>
+
+            {/* Payment */}
+            <section className="card p-5">
+              <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-ink-950">
+                <CreditCard className="h-5 w-5 text-brand-500" /> Payment
+              </h2>
+              <div className="space-y-2">
+                {cards.map((c, i) => (
+                  <button
+                    key={c.label}
+                    onClick={() => setPayIdx(i)}
+                    className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
+                      payIdx === i ? 'border-brand-400 bg-brand-50/60 ring-2 ring-brand-100' : 'border-ink-200 hover:border-ink-300'
                     }`}
                   >
-                    {pay === opt.id && <IconCheck className="h-4 w-4" />}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* Tip */}
-          <section className="card p-5">
-            <h2 className="text-lg font-bold text-ink">Tip your courier</h2>
-            <p className="text-sm text-ink-muted">100% of tips go directly to your rider.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {TIPS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTip(t)}
-                  className={`min-w-[4rem] rounded-xl border px-4 py-2.5 font-bold transition ${
-                    tip === t ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink/15 text-ink hover:border-ink/30'
-                  }`}
-                >
-                  {t === 0 ? 'None' : currency(t)}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* Right: summary */}
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="card overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-ink/10 p-5">
-              <span
-                className="flex h-11 w-11 items-center justify-center rounded-2xl text-white"
-                style={{ backgroundColor: boutique.accent }}
-              >
-                <IconTruck className="h-6 w-6" />
-              </span>
-              <div>
-                <p className="font-bold text-ink">{boutique.name}</p>
-                <p className="text-sm text-ink-muted">{plural(itemCount, 'item')} · {boutique.neighborhood}</p>
-              </div>
-            </div>
-
-            <div className="max-h-64 space-y-3 overflow-y-auto p-5">
-              {cart.map((line) => {
-                const p = getProduct(line.productId);
-                if (!p) return null;
-                const c = p.colors.find((x) => x.name === line.color) ?? p.colors[0];
-                return (
-                  <div key={line.key} className="flex items-center gap-3">
-                    <div
-                      className="flex h-14 w-12 shrink-0 items-center justify-center rounded-xl"
-                      style={{ background: `radial-gradient(120% 120% at 30% 20%, ${shade(c.hex, 0.32)}, ${shade(c.hex, 0.05)})` }}
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink-950 text-white">
+                      {c.icon ? <span className="text-base">{c.icon}</span> : <CreditCard className="h-4 w-4" />}
+                    </span>
+                    <span className="flex-1 text-sm font-semibold text-ink-900">{c.label}</span>
+                    <span
+                      className={`grid h-5 w-5 place-items-center rounded-full border-2 ${
+                        payIdx === i ? 'border-brand-500 bg-brand-500 text-white' : 'border-ink-300'
+                      }`}
                     >
-                      <GarmentArt garment={p.garment} color={c.hex} className="h-full w-full p-1" />
+                      {payIdx === i && <Check className="h-3 w-3" />}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Tip */}
+            <section className="card p-5">
+              <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-ink-950">
+                <Gift className="h-5 w-5 text-brand-500" /> Tip your courier
+              </h2>
+              <p className="mb-4 text-sm text-ink-500">100% of your tip goes to your courier.</p>
+              <div className="flex flex-wrap gap-2">
+                {[0, 3, 5, 8].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      setTip(t)
+                      setCustomTip('')
+                    }}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      customTip === '' && tip === t
+                        ? 'bg-ink-950 text-white'
+                        : 'bg-ink-100 text-ink-700 hover:bg-ink-200'
+                    }`}
+                  >
+                    {t === 0 ? 'None' : currency(t)}
+                  </button>
+                ))}
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-400">$</span>
+                  <input
+                    value={customTip}
+                    onChange={(e) => setCustomTip(e.target.value.replace(/[^0-9.]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="Custom"
+                    className={`w-28 rounded-full border py-2 pl-7 pr-3 text-sm font-semibold outline-none transition ${
+                      customTip !== '' ? 'border-ink-950 ring-2 ring-ink-100' : 'border-ink-200'
+                    }`}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Right column: summary */}
+          <div className="lg:sticky lg:top-24 lg:h-fit">
+            <div className="card overflow-hidden">
+              <div className="border-b border-ink-100 px-5 py-4">
+                <h2 className="text-base font-bold text-ink-950">Order summary</h2>
+              </div>
+
+              <div className="max-h-64 space-y-3 overflow-y-auto px-5 py-4 thin-scroll">
+                {cart.lines.map((line) => (
+                  <div key={line.id} className="flex items-center gap-3">
+                    <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-ink-50 to-ink-100">
+                      <Garment type={line.garment} color={line.color.hex} className="h-11 w-11" />
+                      <span className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-ink-950 text-[11px] font-bold text-white">
+                        {line.qty}
+                      </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{p.name}</p>
-                      <p className="text-xs text-ink-muted">{line.color} · {line.size} · ×{line.qty}</p>
+                      <p className="truncate text-sm font-bold text-ink-900">{line.name}</p>
+                      <p className="text-xs text-ink-500">
+                        {line.color.name} · {line.size}
+                      </p>
                     </div>
-                    <span className="text-sm font-bold text-ink">{currency(p.price * line.qty)}</span>
+                    <span className="text-sm font-bold text-ink-900">{currency(line.price * line.qty)}</span>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
-            <div className="space-y-1.5 border-t border-ink/10 p-5 text-sm">
-              <div className="flex justify-between text-ink-soft">
-                <span>Subtotal</span>
-                <span className="font-semibold text-ink">{currency(cartSubtotal)}</span>
+              <div className="space-y-2 border-t border-ink-100 px-5 py-4 text-sm">
+                <Row label="Subtotal" value={currency(cart.subtotal)} />
+                <Row
+                  label={`Delivery${speed === 'express' ? ' (express)' : ''}`}
+                  value={deliveryFee === 0 ? 'Free' : currency(deliveryFee)}
+                  accent={deliveryFee === 0}
+                />
+                <Row label="Service fee" value={currency(serviceFee)} />
+                <Row label="Courier tip" value={currency(effectiveTip)} />
+                <div className="mt-2 flex items-center justify-between border-t border-ink-100 pt-3">
+                  <span className="text-base font-extrabold text-ink-950">Total</span>
+                  <span className="text-lg font-extrabold text-ink-950">{currency(total)}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-ink-soft">
-                <span>Delivery</span>
-                <span className="font-semibold text-ink">{deliveryFee === 0 ? 'Free' : currency(deliveryFee)}</span>
-              </div>
-              <div className="flex justify-between text-ink-soft">
-                <span>Service fee</span>
-                <span className="font-semibold text-ink">{currency(serviceFee)}</span>
-              </div>
-              <div className="flex justify-between text-ink-soft">
-                <span>Courier tip</span>
-                <span className="font-semibold text-ink">{currency(tip)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between border-t border-dashed border-ink/15 pt-3">
-                <span className="text-base font-bold text-ink">Total</span>
-                <span className="text-xl font-extrabold text-ink">{currency(total)}</span>
-              </div>
-            </div>
 
-            <div className="p-5 pt-0">
-              <button
-                type="button"
-                onClick={handlePlace}
-                disabled={placing}
-                className="btn-primary h-12 w-full text-base"
-              >
-                {placing ? 'Placing order…' : `Place order · ${currency(total)}`}
-              </button>
-              <p className="mt-3 text-center text-xs text-ink-muted">
-                Demo checkout — no payment is taken and no real order is placed.
-              </p>
+              <div className="px-5 pb-5">
+                <button onClick={placeOrder} disabled={placing} className="btn-primary w-full py-3.5 text-sm">
+                  {placing ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Placing order…
+                    </>
+                  ) : (
+                    <>Place order · {currency(total)}</>
+                  )}
+                </button>
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-ink-400">
+                  <ShieldCheck className="h-3.5 w-3.5 text-mint-600" /> Secure checkout · Free 3-day returns
+                </p>
+              </div>
             </div>
           </div>
-        </aside>
-      </div>
+        </div>
+      </main>
     </div>
-  );
+  )
+}
+
+function SpeedOption({
+  active,
+  onClick,
+  icon,
+  title,
+  sub,
+  price,
+  highlight,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  title: string
+  sub: string
+  price: string
+  highlight?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex items-center gap-3 rounded-2xl border p-3 text-left transition ${
+        active ? 'border-brand-400 bg-brand-50/60 ring-2 ring-brand-100' : 'border-ink-200 hover:border-ink-300'
+      }`}
+    >
+      <span
+        className={`grid h-10 w-10 place-items-center rounded-xl ${
+          highlight ? 'bg-brand-500 text-white' : 'bg-ink-950 text-white'
+        }`}
+      >
+        {icon}
+      </span>
+      <div className="flex-1">
+        <p className="text-sm font-bold text-ink-950">{title}</p>
+        <p className="text-xs text-ink-500">{sub}</p>
+      </div>
+      <span className="text-sm font-bold text-ink-900">{price}</span>
+    </button>
+  )
+}
+
+function Row({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-ink-600">
+      <span>{label}</span>
+      <span className={`font-semibold ${accent ? 'text-mint-600' : 'text-ink-900'}`}>{value}</span>
+    </div>
+  )
 }

@@ -3,66 +3,86 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
-      fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['"Clash Display"', '"Plus Jakarta Sans"', 'ui-sans-serif', 'sans-serif'],
-      },
       colors: {
         ink: {
-          DEFAULT: '#171412',
-          soft: '#3b3733',
-          muted: '#8a827a',
+          50: '#f6f5fb',
+          100: '#ecebf5',
+          200: '#d6d3e8',
+          300: '#b3aed2',
+          400: '#8a83b6',
+          500: '#6a629b',
+          600: '#544d80',
+          700: '#464069',
+          800: '#3b3757',
+          900: '#252238',
+          950: '#0f0d1a',
         },
-        cream: '#faf6f1',
         brand: {
-          50: '#fff1ed',
-          100: '#ffe0d6',
-          200: '#ffc2ad',
-          300: '#ff9b78',
-          400: '#ff6f41',
-          500: '#ff4d16',
-          600: '#f03500',
-          700: '#c62a02',
-          800: '#9d2408',
-          900: '#7f210b',
+          50: '#fff1f2',
+          100: '#ffe1e5',
+          200: '#ffc8cf',
+          300: '#ff9daa',
+          400: '#ff6479',
+          500: '#ff2d55',
+          600: '#ed0f3f',
+          700: '#c80732',
+          800: '#a70a30',
+          900: '#8b0d2f',
+          950: '#4d0116',
         },
+        mint: {
+          400: '#34e0a1',
+          500: '#12c98a',
+          600: '#0aa974',
+        },
+      },
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        display: ['"Clash Display"', '"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 12px 40px -12px rgba(23, 20, 18, 0.18)',
-        card: '0 2px 8px -2px rgba(23, 20, 18, 0.08), 0 10px 30px -12px rgba(23, 20, 18, 0.12)',
-        pop: '0 20px 60px -18px rgba(240, 53, 0, 0.4)',
-      },
-      borderRadius: {
-        '4xl': '2rem',
+        soft: '0 2px 8px -2px rgba(15, 13, 26, 0.08), 0 8px 30px -12px rgba(15, 13, 26, 0.12)',
+        lift: '0 10px 40px -12px rgba(15, 13, 26, 0.25)',
+        glow: '0 8px 30px -6px rgba(255, 45, 85, 0.45)',
       },
       keyframes: {
-        'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(12px)' },
+        'fade-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         'scale-in': {
           '0%': { opacity: '0', transform: 'scale(0.96)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
         },
-        'slide-in': {
+        'slide-up': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        'slide-in-right': {
           '0%': { transform: 'translateX(100%)' },
           '100%': { transform: 'translateX(0)' },
         },
-        'bob': {
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+        float: {
           '0%,100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-6px)' },
         },
-        'shimmer': {
-          '100%': { transform: 'translateX(100%)' },
+        'pulse-ring': {
+          '0%': { transform: 'scale(0.8)', opacity: '0.7' },
+          '100%': { transform: 'scale(2.4)', opacity: '0' },
         },
       },
       animation: {
-        'fade-up': 'fade-up 0.5s ease-out both',
+        'fade-in': 'fade-in 0.4s ease-out both',
         'scale-in': 'scale-in 0.25s ease-out both',
-        'slide-in': 'slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both',
-        'bob': 'bob 3s ease-in-out infinite',
+        'slide-up': 'slide-up 0.35s cubic-bezier(0.16,1,0.3,1) both',
+        'slide-in-right': 'slide-in-right 0.35s cubic-bezier(0.16,1,0.3,1) both',
+        float: 'float 4s ease-in-out infinite',
+        'pulse-ring': 'pulse-ring 2s cubic-bezier(0.2,0.6,0.4,1) infinite',
       },
     },
   },
   plugins: [],
-};
+}

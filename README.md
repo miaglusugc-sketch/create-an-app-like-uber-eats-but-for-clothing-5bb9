@@ -1,39 +1,42 @@
-# Threadly — clothing delivered in minutes
+# Threadly — fashion, delivered 🧵
 
-An "Uber Eats, but for clothing" experience: browse your city's local boutiques,
-add pieces to your bag, check out, and watch your courier bring your order to your
-door on a live map.
+An "Uber Eats, but for clothing" experience. Browse local boutiques, add garments
+to your bag, check out, and watch your order get delivered in real time.
 
-Built with **Vite + React + TypeScript + Tailwind CSS**. All product visuals are
-generated as self-contained SVG illustrations, so the app renders with zero
-external asset requests.
+Built with **Vite + React + TypeScript + Tailwind CSS**. Fully client-side — cart,
+orders and delivery tracking are persisted in `localStorage`, so no backend is
+required. All product imagery is rendered as inline SVG (zero external requests).
 
 ## Features
 
-- **Discover** — animated hero, category rail, trending pieces, and boutiques near you
-- **Boutique pages** — per-shop hero, in-store category filters, product grid
-- **Product quick-view** — colour & size selection, quantity, add to bag
-- **Search & browse** — full-text search across boutiques, categories, colours & tags, with sorting
-- **Bag** — slide-out cart with quantity controls, free-delivery progress, and live totals
-- **Checkout** — delivery details, timing, payment method, and courier tip
-- **Live order tracking** — animated courier moving along a map route with a status timeline and ETA
-- **Favourites** — save pieces you love (persisted locally)
-- Cart, favourites, and address persist via `localStorage`
+- 🏬 **Boutique discovery** — browse curated stores with ratings, ETAs, delivery
+  fees, promos and price levels. Filter by category and sort by rating, speed or
+  delivery cost.
+- 🔎 **Search** across boutiques, brands and individual pieces.
+- 👕 **Product pages & quick-add modal** — pick color, size and quantity.
+- 🛍️ **Smart cart drawer** — one boutique per order, free-delivery progress bar,
+  minimum-order gating, quantity controls.
+- 💳 **Checkout** — editable delivery address, standard/express speed, payment
+  method, courier tip, and a live order summary.
+- 🛵 **Live order tracking** — animated courier moving along a route on a stylized
+  map, a status timeline, and a counting-down ETA.
+- 🧾 **Order history** — revisit past orders and track them again.
 
 ## Getting started
 
 ```bash
 npm install
-npm run dev
+npm run dev        # start the dev server
+npm run build      # type-check + production build
 ```
 
-## Scripts
+## Standalone preview
 
-| Script | Description |
-| --- | --- |
-| `npm run dev` | Start the dev server |
-| `npm run build` | Type-check and build for production (`dist/`) |
-| `npm run build:preview` | Build a single self-contained `index.html` (`dist-preview/`) |
-| `npm run preview` | Preview the production build |
+```bash
+npm run build:preview   # emits a single self-contained dist-preview/index.html
+```
 
-> This is a front-end demo — no real payments are processed and no real orders are placed.
+This produces one HTML file with all JS/CSS inlined that renders the whole app
+standalone.
+
+> This is a demo experience — no real orders are placed and no payment is taken.
